@@ -5,7 +5,7 @@ Type SArray = Array of String;
 Type RArray = Array of Real;
 
 //--------------------------------------------------
-//-- GESTION DES COMPLEXES -------------------------
+//-- COMPLEX NUMBERS HANDLING ----------------------
 type Complex = Array [0..1] of Real;
 type CArray = Array of Complex;
 	
@@ -58,8 +58,8 @@ end;
 
 
 //--------------------------------------------------
-//-- TRAITEMENT DES DONNÉES D'ENTRÉE ---------------
-//Sert à découper une chaîne en tableau selon un séparateur
+//-- INPUT DATA HANDLING ---------------------------
+// Split a string to an array using the given separator
 function occurs(const str, separator: string):integer; 
 var i, nSep:integer; 
 begin 
@@ -101,7 +101,7 @@ begin
 	numberOfItems := i;
 end;
 
-//Lit la chaîne reçue et la transforme en vecteur de flottants double précision
+// Read the given string and convert it to a vector of complex numbers
 procedure processInput(var result:CArray; var dimension:Integer);
 var inputFile:TextFile;
 	input:String;
@@ -113,43 +113,42 @@ begin
 	dimension := 0;
 
 	//readln(input);
-	//On lit le fichier ligne par ligne
+	// Read line by line
 	assign(inputFile, 'source.d');
-	reset(inputFile); //On met le pointeur au début du fichier
-	repeat //Pour chaque ligne
+	reset(inputFile); // Put pointer at the beginning of the file
+	repeat // For each line
 		readln(inputFile, input);
 
-		//On a une ligne de coordonnées en plus : on augmente la dimension
 		dimension := dimension + 1;
 		SetLength(result, dimension);
 
-		//On sépare la partie réelle de la partie imaginaire, on forme un complexe avec
+		// Split real and imaginary part (using ',' separator)
 		split(input, ',', stringArray, numberInLine);
 		complexNumber[0] := StrToFloat(stringArray[0]);
 		complexNumber[1] := StrToFloat(stringArray[1]);
 		
-		//On écrit le résultat dans le vecteur de sortie
+		// Add this number to output
 		result[dimension-1] := complexNumber;
 
-	until(EOF(inputFile)); // On continue de lire tant que l'on n'arrive pas au bout du fichier
-	close(inputFile); //On ferme le fichier
+	until(EOF(inputFile));
+	close(inputFile);
 end;
 //--------------------------------------------------
 
 
 //--------------------------------------------------
-//-- DÉTECTION DE LA DIMENSION DU VECTEUR DONNÉ ---
-//Sert à récupérer la valeur d'un bit au sein de n'importe quelle variable
+//-- DATA DIMENSION DETECTION ----------------------
+// Read the value of a bit from any variable
 function getBit(const Val: DWord; const BitVal: Byte): Boolean;
 begin
 	getBit := (Val and (1 shl BitVal)) <> 0;
 end;
-//Sert à affecter la valeur d'un bit
+// Set the value of a bit in any variable
 function enableBit(const Val: DWord; const BitVal: Byte; const SetOn: Boolean): DWord;
 begin
 	enableBit := (Val or (1 shl BitVal)) xor (Integer(not SetOn) shl BitVal);
 end;
-//Sert à savoir si un nombre est une puissance de deux
+// Determine wether a number is a power of two
 procedure isPowerOfTwo(n:Integer; var result:Boolean; var power:Integer);
 var bitCounter:Integer;
 	keepIncrementingPower:Boolean;
@@ -158,25 +157,25 @@ begin
 	keepIncrementingPower := true;
 	power := 0;
 
-	while (n > 0) do //La boucle prendra fin lorsque n finit par devenir 0
+	// n is a power of two <=> it has only one bit set to 1
+	while (n > 0) do
 	begin
 		if ((n and 1) = 1) then
 		begin
 			Inc(bitCounter);
 			keepIncrementingPower := false;
 		end;
-		n := n >> 1; //On shift n vers la droite
+		n := n >> 1; // Bitwise shift
 		if (keepIncrementingPower) then
 			Inc(power);
 	end;
-	//Le nombre est une puissance de 2 si et seulement si il n'a qu'un bit à 1
 	result := (bitCounter = 1);
 end;
 //--------------------------------------------------
 
 
 //--------------------------------------------------
-//-- PERMUTATION MIROIR ----------------------------
+//-- MIRROR PERMUTATION ----------------------------
 function mirrorTransform(n,m:Integer):Integer;
 var i,p : Integer;
 begin
@@ -209,30 +208,29 @@ end;
 
 
 //--------------------------------------------------
-//-- LA RÉCURRENCE ---------------------------------
+//-- FFT COMPUTATION STEP --------------------------
 function doStep(k, M : Longint; prev:CArray):CArray;
 var expTerm, substractTerm : Complex;
 	dimension, q, j, offset : Longint;
 	u : CArray;
 begin
-	//INITIALISATION
+	// INITIALIzATION
 	//offset = 2^(M-k)
 	offset := system.round(intpower(2, M-k));
 
-	//On donne la bonne dimension au vecteur résultat u_k
 	SetLength(u, length(prev));
 
-	//CALCUL DE CHAQUE COORDONNÉE DE u_k
+	// COMPUTE EACH COORDINATE OF u_k
 	for q:=0 to system.round(intpower(2, k-1) - 1) do
-	begin //Pour chaque bloc
+	begin // For each block of the matrix
 
 		for j:=0 to (offset - 1) do
-		begin //Pour chaque ligne dans ce bloc
+		begin // Fo each line of this block
 
-			//Dans la première moitié
+			// First half
 			u[q*2*offset + j] := add( prev[q*2*offset + j], prev[q*2*offset + j + offset] );
 
-			//Dans la deuxième moitié
+			// Second half
 			expTerm[0] := cos( (j * PI) / offset );
 			expTerm[1] := sin( (j * PI) / offset );
 			substractTerm := substract( prev[q*2*offset + j], prev[q*2*offset + j + offset] );
@@ -241,11 +239,11 @@ begin
 
 	end;
 	
-
-	//On renvoie le résultat
+	// Output result
 	doStep := u;
 end;
-//TRANSFORMÉE DE FOURIER DISCRÈTE PAR L'ALGORITHME FFT
+
+// DISCRETE FOURIER TRANSFORM USING COOLEY-TUKEY'S FFT ALGORITHM
 function fft(g:CArray; order:Integer):CArray;
 var previousRank, nextRank : CArray;
 	i : Integer;
@@ -253,17 +251,17 @@ begin
 
 	previousRank := g;
 	for i:=1 to order do
-	begin //La récurrence
+	begin
 		nextRank := doStep(i, order, previousRank);
 		previousRank := nextRank;
 	end;
 
-	//Transformation miroir
+	// Mirror transform
 	nextRank := doPermutation(nextRank, order);
 
 	fft := nextRank;
 end;
-//TRANSFORMÉE DE FOURIER DISCRÈTE INVERSE
+// INVERSE FOURIER TRANSFORM
 function ifft(G:CArray; order:Integer):CArray;
 var result : CArray;
 	i, n : Longint;
@@ -287,7 +285,7 @@ end;
 
 
 //--------------------------------------------------
-//-- AFFICHAGE DU RÉSULTAT -------------------------
+//-- RESULT OUTPUT ---------------------------------
 procedure writeResult(result : CArray);
 var i, dimension : Integer;
 begin
@@ -301,18 +299,19 @@ begin
 		writeln(' I');
 	end;
 end;
+// Output one complex number per line using the format:
+// real part, imaginary part
 procedure saveResult(result : CArray);
 var i, dimension : Integer;
 	outputFile : TextFile;
 begin
 	dimension := length(result);
 
-	//Ouverture du fichier
+	// Open output file
 	assign(outputFile, 'result.d');
 	rewrite(outputFile);
 
-	//Écriture ligne par ligne
-	//au format : partie réelle, partie imaginaire
+	// Write each complex number to a new line
 	for i := 0 to dimension - 1 do
 	begin
 		write(outputFile, result[i][0]);
@@ -336,38 +335,38 @@ begin
 	n := 0; m := 0;
 	isAcceptable := false;
 	
-	//RÉCEPTION DES DONNÉES
+	// READ INPUT DATA
 	processInput(received, n);
 	
-	//On détecte si la dimension donnée est acceptable
+	// Dimension detection: only accept powers of 2
 	isPowerOfTwo(n, isAcceptable, m);
 	if isAcceptable then
-	begin //La dimension du vecteur est acceptable
-		write('Le vecteur donné est de dimension : 2^');
+	begin // Acceptable dimension
+		write('The given vector is of dimension : 2^');
 		writeln(m);
 		//La dimension de g nous donne M
-		write('On a donc un cas M=');
+		write('We thus have M=');
 		writeln(m);
 
-		//APPLICATION DE LA TRANSFORMÉE AU VECTEUR DONNÉ
+		// APPLY TRANSFORM
 		result := fft(received, m);
 
-		//AFFICHAGE DU RÉSULTAT
-		writeln('Vecteur transformé :');
+		// PRINT RESULT
+		writeln('Transformed result:');
 		writeResult(result);
 
-		//ON RETROUVE LE VECTEUR INITIAL AVEC LA IDFT
-		writeln('En calculant la transformée inverse, on retrouve le vecteur initial :');
+		// DEMO: find back the original vector using inverse tranform
+		writeln('We find back the original vector using the inverse transform:');
 		guessedData := ifft(result, m);
 		writeResult(guessedData);
 
-		//ENREGISTREMENT DU VECTEUR TRANSFORMÉ DANS result.d
+		// WRITE RESULT TO result.d
 		saveResult(result);
 
 	end
-	else //La dimension n'est pas acceptable
+	else // Dimension is not acceptable
 	begin
-		writeln('Le vecteur donné n''a pas une dimension de la forme 2^M.');
+		writeln('The given vector doesn''t have a dimension of  2^M.');
 	end;
 end.
 //--------------------------------------------------
